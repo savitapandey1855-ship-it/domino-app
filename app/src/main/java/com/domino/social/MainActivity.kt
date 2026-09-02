@@ -16,7 +16,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
-import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.messaging.FirebaseMessaging
@@ -27,7 +26,6 @@ class MainActivity : Activity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var progressBar: ProgressBar
     private lateinit var errorLayout: View
-    private var backPressedOnce = false
 
     companion object {
         private const val LAUNCH_URL = "https://domino6139socialmedia.edgeone.dev/"
@@ -227,30 +225,22 @@ class MainActivity : Activity() {
         } else {
             webView.loadUrl(LAUNCH_URL)
         }
-
-        // Exit: back press exits immediately (no confirmation)
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                }
-            }
-        })
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == 1001) {
-            val callback = (webView.webChromeClient as? WebChromeClient)
-            // Handle via reflection or direct callback — simplified approach
-            // The file chooser callback is handled in the WebChromeClient
-            super.onActivityResult(requestCode, resultCode, data)
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack()
         } else {
-            super.onActivityResult(requestCode, resultCode, data)
+            super.onBackPressed()
         }
+    }
+
+    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
