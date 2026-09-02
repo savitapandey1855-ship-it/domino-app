@@ -1,0 +1,9 @@
+firebase-service-account.json
+google-services.json
+*.keystore
+*.jks
+local.properties
+.gradle/
+build/
+.idea/
+*.iml
