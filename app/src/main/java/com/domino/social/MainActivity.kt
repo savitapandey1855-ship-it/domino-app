@@ -29,7 +29,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val LAUNCH_URL = "https://domino6139socialmedia.edgeone.dev/"
-        private const val TAG = "DominoApp"
+        private const val TAG = "DraminoApp"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -41,6 +41,7 @@ class MainActivity : Activity() {
 
         // Set status bar color
         window.statusBarColor = Color.parseColor("#7C3AED")
+        window.navigationBarColor = Color.parseColor("#7C3AED")
 
         val container = FrameLayout(this)
 
@@ -52,7 +53,6 @@ class MainActivity : Activity() {
             setOnRefreshListener {
                 webView.reload()
             }
-            // Purple color scheme for refresh spinner
             setColorSchemeColors(
                 Color.parseColor("#7C3AED"),
                 Color.parseColor("#EC4899"),
@@ -87,35 +87,63 @@ class MainActivity : Activity() {
         setContentView(container)
 
         // ---- FCM Setup ----
-        FirebaseMessaging.getInstance().subscribeToTopic("all")
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) Log.d(TAG, "Subscribed to 'all' topic")
+        try {
+            FirebaseMessaging.getInstance().subscribeToTopic("all")
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) Log.d(TAG, "Subscribed to 'all' topic")
+                }
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) Log.d(TAG, "FCM Token: ${task.result}")
             }
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) Log.d(TAG, "FCM Token: ${task.result}")
+        } catch (e: Exception) {
+            Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
-        // ---- WebView Configuration ----
+        // ---- WebView Configuration (optimized for speed + mobile rendering) ----
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+
+            // === MOBILE RENDERING FIX ===
+            // Force viewport to device width so posts display full-width like browser
+            useWideViewPort = true
+            loadWithOverviewMode = true
+
+            // === SPEED OPTIMIZATION ===
+            // Aggressive caching for faster loads
+            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            // Enable offline storage
+            setAppCacheEnabled(true)
+            setAppCachePath(context.cacheDir.absolutePath)
+            // Enable smooth rendering
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+            // Enable hardware acceleration for rendering
+            offscreenPreRaster = true
+            // Prefetch DNS for faster subsequent loads
+            // Render ahead for smoother scrolling
             cacheMode = WebSettings.LOAD_DEFAULT
+
             // Zoom OFF
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
+
             // Text copy OFF
             textZoom = 100
+
             // File access
             allowFileAccess = true
             allowContentAccess = true
+
             // Media
             mediaPlaybackRequiresUserGesture = false
+
             // Mixed content
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            // User agent
-            userAgentString = userAgentString + " DominoApp/1.0"
+
+            // User agent - keep it clean like a mobile browser
+            userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
         // Disable long-click (prevents text selection / copy)
@@ -127,10 +155,8 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 return if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // Internal navigation — load in WebView
                     false
                 } else {
-                    // External links (tel:, mailto:, whatsapp:, etc.)
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         true
@@ -140,12 +166,16 @@ class MainActivity : Activity() {
                 }
             }
 
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility = View.VISIBLE
+            }
+
             override fun onReceivedError(
                 view: WebView?,
                 request: WebResourceRequest?,
                 error: WebResourceError?
             ) {
-                // Only show error page for main frame
                 if (request != null && request.isForMainFrame) {
                     errorLayout.visibility = View.VISIBLE
                     swipeRefresh.isRefreshing = false
@@ -158,24 +188,54 @@ class MainActivity : Activity() {
                 progressBar.progress = 100
                 progressBar.visibility = View.GONE
 
-                // Inject CSS to disable text selection
+                // Inject viewport + CSS fixes for mobile-friendly rendering + disable text selection
                 view?.evaluateJavascript(
                     """
                     (function() {
+                        // Fix viewport meta tag for proper mobile rendering
+                        var viewport = document.querySelector('meta[name="viewport"]');
+                        if (!viewport) {
+                            viewport = document.createElement('meta');
+                            viewport.name = 'viewport';
+                            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                            document.head.appendChild(viewport);
+                        } else {
+                            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                        }
+
+                        // Inject CSS for mobile-friendly + no-select
                         var style = document.createElement('style');
                         style.type = 'text/css';
                         style.innerHTML = '' +
+                            'html, body {' +
+                            '  width: 100% !important;' +
+                            '  max-width: 100vw !important;' +
+                            '  overflow-x: hidden !important;' +
+                            '  margin: 0 !important;' +
+                            '  padding: 0 !important;' +
+                            '}' +
                             '* {' +
                             '  -webkit-user-select: none !important;' +
                             '  -moz-user-select: none !important;' +
                             '  -ms-user-select: none !important;' +
                             '  user-select: none !important;' +
+                            '  -webkit-touch-callout: none !important;' +
+                            '  -webkit-tap-highlight-color: transparent !important;' +
                             '}' +
-                            'input, textarea {' +
+                            'input, textarea, [contenteditable="true"] {' +
                             '  -webkit-user-select: text !important;' +
                             '  -moz-user-select: text !important;' +
                             '  -ms-user-select: text !important;' +
                             '  user-select: text !important;' +
+                            '}' +
+                            'img, video {' +
+                            '  max-width: 100% !important;' +
+                            '  height: auto !important;' +
+                            '}' +
+                            '.post, .card, article, [class*="post"] {' +
+                            '  width: 100% !important;' +
+                            '  max-width: 100% !important;' +
+                            '  box-sizing: border-box !important;' +
                             '}';
                         document.head.appendChild(style);
                     })();
