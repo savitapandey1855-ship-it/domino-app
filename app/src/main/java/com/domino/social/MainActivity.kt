@@ -36,23 +36,16 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Edge-to-edge layout
         WindowCompat.setDecorFitsSystemWindows(window, true)
-
-        // Set status bar color
         window.statusBarColor = Color.parseColor("#7C3AED")
         window.navigationBarColor = Color.parseColor("#7C3AED")
 
         val container = FrameLayout(this)
 
-        // ---- WebView ----
         webView = WebView(this)
 
-        // ---- SwipeRefreshLayout (pull-to-refresh) ----
         swipeRefresh = SwipeRefreshLayout(this).apply {
-            setOnRefreshListener {
-                webView.reload()
-            }
+            setOnRefreshListener { webView.reload() }
             setColorSchemeColors(
                 Color.parseColor("#7C3AED"),
                 Color.parseColor("#EC4899"),
@@ -62,7 +55,6 @@ class MainActivity : Activity() {
         swipeRefresh.addView(webView)
         container.addView(swipeRefresh)
 
-        // ---- Progress bar (top loading bar) ----
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
@@ -75,7 +67,6 @@ class MainActivity : Activity() {
         }
         container.addView(progressBar)
 
-        // ---- Error layout (Something went wrong) ----
         errorLayout = layoutInflater.inflate(R.layout.layout_error, null)
         errorLayout.visibility = View.GONE
         errorLayout.findViewById<android.widget.Button>(R.id.btnRetry).setOnClickListener {
@@ -86,7 +77,6 @@ class MainActivity : Activity() {
 
         setContentView(container)
 
-        // ---- FCM Setup ----
         try {
             FirebaseMessaging.getInstance().subscribeToTopic("all")
                 .addOnCompleteListener { task ->
@@ -99,30 +89,19 @@ class MainActivity : Activity() {
             Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
-        // ---- WebView Configuration (optimized for speed + mobile rendering) ----
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
 
             // === MOBILE RENDERING FIX ===
-            // Force viewport to device width so posts display full-width like browser
             useWideViewPort = true
             loadWithOverviewMode = true
 
             // === SPEED OPTIMIZATION ===
-            // Aggressive caching for faster loads
-            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-            // Enable offline storage
-            setAppCacheEnabled(true)
-            setAppCachePath(context.cacheDir.absolutePath)
-            // Enable smooth rendering
-            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-            // Enable hardware acceleration for rendering
-            offscreenPreRaster = true
-            // Prefetch DNS for faster subsequent loads
-            // Render ahead for smoother scrolling
             cacheMode = WebSettings.LOAD_DEFAULT
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+            offscreenPreRaster = true
 
             // Zoom OFF
             setSupportZoom(false)
@@ -142,11 +121,10 @@ class MainActivity : Activity() {
             // Mixed content
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
-            // User agent - keep it clean like a mobile browser
+            // User agent - mobile browser
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
-        // Disable long-click (prevents text selection / copy)
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
         webView.isLongClickable = true
@@ -188,11 +166,9 @@ class MainActivity : Activity() {
                 progressBar.progress = 100
                 progressBar.visibility = View.GONE
 
-                // Inject viewport + CSS fixes for mobile-friendly rendering + disable text selection
                 view?.evaluateJavascript(
                     """
                     (function() {
-                        // Fix viewport meta tag for proper mobile rendering
                         var viewport = document.querySelector('meta[name="viewport"]');
                         if (!viewport) {
                             viewport = document.createElement('meta');
@@ -202,8 +178,6 @@ class MainActivity : Activity() {
                         } else {
                             viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
                         }
-
-                        // Inject CSS for mobile-friendly + no-select
                         var style = document.createElement('style');
                         style.type = 'text/css';
                         style.innerHTML = '' +
@@ -254,7 +228,6 @@ class MainActivity : Activity() {
                 }
             }
 
-            // File upload support
             private var filePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
 
             override fun onShowFileChooser(
@@ -279,7 +252,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // Restore state on rotation or load URL
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState)
         } else {
