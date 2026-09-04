@@ -17,6 +17,8 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -29,44 +31,68 @@ class MainActivity : Activity() {
 
     companion object {
         private const val LAUNCH_URL = "https://domino6139socialmedia.edgeone.dev/"
-        private const val TAG = "DraminoApp"
+        private const val TAG = "DranivoLite"
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        window.statusBarColor = Color.parseColor("#7C3AED")
-        window.navigationBarColor = Color.parseColor("#7C3AED")
+        // Edge-to-edge: no system bar padding, WebView fills entire screen
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
 
         val container = FrameLayout(this)
 
-        webView = WebView(this)
+        // WebView fills entire screen - no padding, no margin, no border
+        webView = WebView(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(0, 0, 0, 0)
+            val params = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            params.setMargins(0, 0, 0, 0)
+            layoutParams = params
+        }
 
+        // SwipeRefreshLayout - also full screen, no padding
         swipeRefresh = SwipeRefreshLayout(this).apply {
+            setPadding(0, 0, 0, 0)
             setOnRefreshListener { webView.reload() }
             setColorSchemeColors(
                 Color.parseColor("#7C3AED"),
                 Color.parseColor("#EC4899"),
                 Color.parseColor("#8B5CF6")
             )
+            val params = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            params.setMargins(0, 0, 0, 0)
+            layoutParams = params
         }
         swipeRefresh.addView(webView)
         container.addView(swipeRefresh)
 
+        // Progress bar - at very top, transparent background
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
             isIndeterminate = false
             progressTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7C3AED"))
-            layoutParams = FrameLayout.LayoutParams(
+            val params = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 (6 * resources.displayMetrics.density).toInt()
             )
+            params.setMargins(0, 0, 0, 0)
+            layoutParams = params
+            elevation = 100f
         }
         container.addView(progressBar)
 
+        // Error layout
         errorLayout = layoutInflater.inflate(R.layout.layout_error, null)
         errorLayout.visibility = View.GONE
         errorLayout.findViewById<android.widget.Button>(R.id.btnRetry).setOnClickListener {
@@ -77,6 +103,7 @@ class MainActivity : Activity() {
 
         setContentView(container)
 
+        // FCM
         try {
             FirebaseMessaging.getInstance().subscribeToTopic("all")
                 .addOnCompleteListener { task ->
@@ -89,16 +116,17 @@ class MainActivity : Activity() {
             Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
+        // WebView Configuration - optimized for mobile rendering + speed
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
 
-            // === MOBILE RENDERING FIX ===
+            // === MOBILE RENDERING - exactly like browser ===
             useWideViewPort = true
             loadWithOverviewMode = true
 
-            // === SPEED OPTIMIZATION ===
+            // Speed
             cacheMode = WebSettings.LOAD_DEFAULT
             layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
             offscreenPreRaster = true
@@ -121,9 +149,15 @@ class MainActivity : Activity() {
             // Mixed content
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
-            // User agent - mobile browser
+            // User agent - exact mobile Chrome browser UA
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
+
+        // No padding on WebView itself
+        webView.setPadding(0, 0, 0, 0)
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
+        webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
 
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
@@ -166,52 +200,83 @@ class MainActivity : Activity() {
                 progressBar.progress = 100
                 progressBar.visibility = View.GONE
 
+                // Inject CSS to remove all borders/padding/margins + force mobile-friendly
                 view?.evaluateJavascript(
                     """
                     (function() {
+                        // Force correct viewport
                         var viewport = document.querySelector('meta[name="viewport"]');
                         if (!viewport) {
                             viewport = document.createElement('meta');
                             viewport.name = 'viewport';
-                            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
                             document.head.appendChild(viewport);
-                        } else {
-                            viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
                         }
+                        viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+
+                        // Remove any borders, padding, margins on ALL elements
                         var style = document.createElement('style');
                         style.type = 'text/css';
                         style.innerHTML = '' +
                             'html, body {' +
-                            '  width: 100% !important;' +
+                            '  width: 100vw !important;' +
                             '  max-width: 100vw !important;' +
-                            '  overflow-x: hidden !important;' +
+                            '  min-width: 100vw !important;' +
                             '  margin: 0 !important;' +
                             '  padding: 0 !important;' +
+                            '  border: none !important;' +
+                            '  outline: none !important;' +
+                            '  box-sizing: border-box !important;' +
+                            '  overflow-x: hidden !important;' +
+                            '  -webkit-overflow-scrolling: touch !important;' +
                             '}' +
                             '* {' +
+                            '  box-sizing: border-box !important;' +
                             '  -webkit-user-select: none !important;' +
-                            '  -moz-user-select: none !important;' +
-                            '  -ms-user-select: none !important;' +
                             '  user-select: none !important;' +
                             '  -webkit-touch-callout: none !important;' +
                             '  -webkit-tap-highlight-color: transparent !important;' +
                             '}' +
+                            '* {' +
+                            '  max-width: 100vw !important;' +
+                            '}' +
                             'input, textarea, [contenteditable="true"] {' +
                             '  -webkit-user-select: text !important;' +
-                            '  -moz-user-select: text !important;' +
-                            '  -ms-user-select: text !important;' +
                             '  user-select: text !important;' +
                             '}' +
-                            'img, video {' +
+                            'img, video, iframe {' +
                             '  max-width: 100% !important;' +
                             '  height: auto !important;' +
+                            '  object-fit: contain !important;' +
                             '}' +
-                            '.post, .card, article, [class*="post"] {' +
+                            '.post, .card, article, [class*="post"], [class*="card"], [class*="feed"], [class*="container"], [class*="wrapper"], [class*="content"], [class*="main"] {' +
                             '  width: 100% !important;' +
                             '  max-width: 100% !important;' +
+                            '  margin: 0 auto !important;' +
+                            '  padding: 0 !important;' +
+                            '  border: none !important;' +
                             '  box-sizing: border-box !important;' +
+                            '}' +
+                            '#root, #app, [id*="root"], [id*="app"] {' +
+                            '  width: 100vw !important;' +
+                            '  max-width: 100vw !important;' +
+                            '  margin: 0 !important;' +
+                            '  padding: 0 !important;' +
+                            '  border: none !important;' +
+                            '}' +
+                            'div, section, main, header, footer, nav {' +
+                            '  max-width: 100vw !important;' +
                             '}';
                         document.head.appendChild(style);
+
+                        // Remove any inline border styles
+                        var allElements = document.querySelectorAll('*');
+                        for (var i = 0; i < allElements.length; i++) {
+                            var el = allElements[i];
+                            el.style.border = 'none';
+                            if (window.getComputedStyle(el).maxWidth && parseInt(window.getComputedStyle(el).maxWidth) > window.innerWidth) {
+                                el.style.maxWidth = '100%';
+                            }
+                        }
                     })();
                     """.trimIndent(),
                     null
