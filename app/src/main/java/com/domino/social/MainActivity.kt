@@ -17,8 +17,6 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -30,7 +28,7 @@ class MainActivity : Activity() {
     private lateinit var errorLayout: View
 
     companion object {
-        private const val LAUNCH_URL = "https://domino6139socialmedia.edgeone.dev/"
+        private const val LAUNCH_URL = "file:///android_asset/Damino.html"
         private const val TAG = "DranivoLite"
     }
 
@@ -116,19 +114,18 @@ class MainActivity : Activity() {
             Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
-        // WebView Configuration - optimized for mobile rendering + speed
+        // WebView Configuration - clean, no CSS manipulation
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
 
-            // === MOBILE RENDERING - exactly like browser ===
+            // Mobile rendering
             useWideViewPort = true
             loadWithOverviewMode = true
 
             // Speed
             cacheMode = WebSettings.LOAD_DEFAULT
-            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
             offscreenPreRaster = true
 
             // Zoom OFF
@@ -149,7 +146,7 @@ class MainActivity : Activity() {
             // Mixed content
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
-            // User agent - exact mobile Chrome browser UA
+            // User agent - mobile Chrome
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
@@ -166,7 +163,7 @@ class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
-                return if (url.startsWith("http://") || url.startsWith("https://")) {
+                return if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
                     false
                 } else {
                     try {
@@ -200,83 +197,25 @@ class MainActivity : Activity() {
                 progressBar.progress = 100
                 progressBar.visibility = View.GONE
 
-                // Inject CSS to remove all borders/padding/margins + force mobile-friendly
+                // Minimal CSS: only disable text selection + tap highlight
+                // Do NOT override any layout properties - let the web app's own CSS work
                 view?.evaluateJavascript(
                     """
                     (function() {
-                        // Force correct viewport
-                        var viewport = document.querySelector('meta[name="viewport"]');
-                        if (!viewport) {
-                            viewport = document.createElement('meta');
-                            viewport.name = 'viewport';
-                            document.head.appendChild(viewport);
-                        }
-                        viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
-
-                        // Remove any borders, padding, margins on ALL elements
                         var style = document.createElement('style');
                         style.type = 'text/css';
                         style.innerHTML = '' +
-                            'html, body {' +
-                            '  width: 100vw !important;' +
-                            '  max-width: 100vw !important;' +
-                            '  min-width: 100vw !important;' +
-                            '  margin: 0 !important;' +
-                            '  padding: 0 !important;' +
-                            '  border: none !important;' +
-                            '  outline: none !important;' +
-                            '  box-sizing: border-box !important;' +
-                            '  overflow-x: hidden !important;' +
-                            '  -webkit-overflow-scrolling: touch !important;' +
-                            '}' +
                             '* {' +
-                            '  box-sizing: border-box !important;' +
                             '  -webkit-user-select: none !important;' +
                             '  user-select: none !important;' +
                             '  -webkit-touch-callout: none !important;' +
                             '  -webkit-tap-highlight-color: transparent !important;' +
                             '}' +
-                            '* {' +
-                            '  max-width: 100vw !important;' +
-                            '}' +
                             'input, textarea, [contenteditable="true"] {' +
                             '  -webkit-user-select: text !important;' +
                             '  user-select: text !important;' +
-                            '}' +
-                            'img, video, iframe {' +
-                            '  max-width: 100% !important;' +
-                            '  height: auto !important;' +
-                            '  object-fit: contain !important;' +
-                            '}' +
-                            '.post, .card, article, [class*="post"], [class*="card"], [class*="feed"], [class*="container"], [class*="wrapper"], [class*="content"], [class*="main"] {' +
-                            '  width: 100% !important;' +
-                            '  max-width: 100% !important;' +
-                            '  margin: 0 auto !important;' +
-                            '  padding: 0 !important;' +
-                            '  border: none !important;' +
-                            '  box-sizing: border-box !important;' +
-                            '}' +
-                            '#root, #app, [id*="root"], [id*="app"] {' +
-                            '  width: 100vw !important;' +
-                            '  max-width: 100vw !important;' +
-                            '  margin: 0 !important;' +
-                            '  padding: 0 !important;' +
-                            '  border: none !important;' +
-                            '}' +
-                            'div, section, main, header, footer, nav {' +
-                            '  max-width: 100vw !important;' +
                             '}';
                         document.head.appendChild(style);
-
-                        // Remove any inline border styles
-                        var allElements = document.querySelectorAll('*');
-                        for (var i = 0; i < allElements.length; i++) {
-                            var el = allElements[i];
-                            el.style.border = 'none';
-                            if (window.getComputedStyle(el).maxWidth && parseInt(window.getComputedStyle(el).maxWidth) > window.innerWidth) {
-                                el.style.maxWidth = '100%';
-                            }
-                        }
                     })();
                     """.trimIndent(),
                     null
@@ -307,7 +246,7 @@ class MainActivity : Activity() {
                 intent.type = "*/*"
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
                 try {
-                    @Suppress("DEPRECATION")
+                    @SuppressLint("DEPRECATION")
                     startActivityForResult(Intent.createChooser(intent, "Select File"), 1001)
                 } catch (e: Exception) {
                     filePathCallback = null
