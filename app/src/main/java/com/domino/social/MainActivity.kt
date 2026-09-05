@@ -36,14 +36,12 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Edge-to-edge: no system bar padding, WebView fills entire screen
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
 
         val container = FrameLayout(this)
 
-        // WebView fills entire screen - no padding, no margin, no border
         webView = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             setPadding(0, 0, 0, 0)
@@ -55,7 +53,6 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
-        // SwipeRefreshLayout - also full screen, no padding
         swipeRefresh = SwipeRefreshLayout(this).apply {
             setPadding(0, 0, 0, 0)
             setOnRefreshListener { webView.reload() }
@@ -74,7 +71,6 @@ class MainActivity : Activity() {
         swipeRefresh.addView(webView)
         container.addView(swipeRefresh)
 
-        // Progress bar - at very top, transparent background
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
@@ -90,7 +86,6 @@ class MainActivity : Activity() {
         }
         container.addView(progressBar)
 
-        // Error layout
         errorLayout = layoutInflater.inflate(R.layout.layout_error, null)
         errorLayout.visibility = View.GONE
         errorLayout.findViewById<android.widget.Button>(R.id.btnRetry).setOnClickListener {
@@ -101,7 +96,6 @@ class MainActivity : Activity() {
 
         setContentView(container)
 
-        // FCM
         try {
             FirebaseMessaging.getInstance().subscribeToTopic("all")
                 .addOnCompleteListener { task ->
@@ -114,48 +108,29 @@ class MainActivity : Activity() {
             Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
-        // WebView Configuration - clean, no CSS manipulation
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-
-            // Mobile rendering
             useWideViewPort = true
             loadWithOverviewMode = true
-
-            // Speed
             cacheMode = WebSettings.LOAD_DEFAULT
             offscreenPreRaster = true
-
-            // Zoom OFF
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
-
-            // Text copy OFF
             textZoom = 100
-
-            // File access
             allowFileAccess = true
             allowContentAccess = true
-
-            // Media
             mediaPlaybackRequiresUserGesture = false
-
-            // Mixed content
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-
-            // User agent - mobile Chrome
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
-        // No padding on WebView itself
         webView.setPadding(0, 0, 0, 0)
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
         webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
         webView.isLongClickable = true
@@ -246,7 +221,6 @@ class MainActivity : Activity() {
                 intent.type = "*/*"
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
                 try {
-                    @SuppressLint("DEPRECATION")
                     startActivityForResult(Intent.createChooser(intent, "Select File"), 1001)
                 } catch (e: Exception) {
                     filePathCallback = null
