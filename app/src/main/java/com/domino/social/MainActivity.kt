@@ -28,7 +28,7 @@ class MainActivity : Activity() {
     private lateinit var errorLayout: View
 
     companion object {
-        private const val LAUNCH_URL = "file:///android_asset/Damino.html"
+        private const val LAUNCH_URL = "https://domino6139socialmedia.edgeone.dev/"
         private const val TAG = "DranivoLite"
     }
 
@@ -138,7 +138,7 @@ class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
-                return if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://")) {
+                return if (url.startsWith("http://") || url.startsWith("https://")) {
                     false
                 } else {
                     try {
@@ -173,7 +173,6 @@ class MainActivity : Activity() {
                 progressBar.visibility = View.GONE
 
                 // Minimal CSS: only disable text selection + tap highlight
-                // Do NOT override any layout properties - let the web app's own CSS work
                 view?.evaluateJavascript(
                     """
                     (function() {
