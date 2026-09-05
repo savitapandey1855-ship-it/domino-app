@@ -1,4 +1,4 @@
 <resources>
     <string name="appName">Dranivo Lite</string>
-    <string name="launchUrl">https://domino6139socialmedia.edgeone.dev/</string>
+    <string name="launchUrl">file:///android_asset/Damino.html</string>
 </resources>
