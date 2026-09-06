@@ -1,14 +1,16 @@
 package com.domino.social
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -17,6 +19,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -35,11 +39,22 @@ class MainActivity : Activity() {
         private const val TAG = "DranivoLite"
     }
 
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val denied = results.filter { !it.value }
+        if (denied.isNotEmpty()) {
+            Log.w(TAG, "Denied permissions: ${denied.keys}")
+        }
+        // Load the web page after permissions are handled
+        webView.loadUrl(LAUNCH_URL)
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Full-screen immersive mode - hide status bar + navigation bar
+        // Full-screen immersive mode
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         controller.hide(WindowInsetsCompat.Type.systemBars())
@@ -103,6 +118,7 @@ class MainActivity : Activity() {
 
         setContentView(container)
 
+        // FCM setup
         try {
             FirebaseMessaging.getInstance().subscribeToTopic("all")
                 .addOnCompleteListener { task ->
@@ -115,6 +131,7 @@ class MainActivity : Activity() {
             Log.w(TAG, "FCM not configured: ${e.message}")
         }
 
+        // Configure WebView
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -131,13 +148,11 @@ class MainActivity : Activity() {
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-            // Fix touch issues - ensure proper touch handling
             javaScriptCanOpenWindowsAutomatically = true
-            // Set a mobile user agent so the site serves mobile version
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
-        // Fix touch issues: ensure WebView doesn't intercept touch events improperly
+        // Fix touch issues
         webView.setPadding(0, 0, 0, 0)
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
@@ -149,10 +164,8 @@ class MainActivity : Activity() {
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
 
-        // Re-show system bars on focus change for immersive sticky mode
         webView.setOnSystemUiVisibilityChangeListener { visibility ->
             if (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0) {
-                // System bars are visible - hide them again after a short delay
                 webView.postDelayed({
                     WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
                 }, 3000)
@@ -197,7 +210,6 @@ class MainActivity : Activity() {
                 progressBar.visibility = View.GONE
 
                 // Minimal CSS: only disable text selection + tap highlight
-                // Do NOT override any layout properties - let the web app's own CSS work
                 view?.evaluateJavascript(
                     """
                     (function() {
@@ -252,11 +264,63 @@ class MainActivity : Activity() {
                 }
                 return true
             }
+
+            // Grant permissions for getUserMedia (camera, microphone) requests from the web page
+            override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                request.grant(request.resources)
+            }
         }
 
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState)
+        }
+
+        // Request all runtime permissions, then load URL
+        requestEssentialPermissions()
+    }
+
+    private fun requestEssentialPermissions() {
+        val permissions = mutableListOf<String>()
+
+        // Camera
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.CAMERA)
+        }
+
+        // Microphone
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        // Storage (Android 13+ uses READ_MEDIA_*)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }
+        }
+
+        if (permissions.isNotEmpty()) {
+            permissionLauncher.launch(permissions.toTypedArray())
+        } else {
+            // All permissions already granted — load the page
             webView.loadUrl(LAUNCH_URL)
         }
     }
@@ -264,7 +328,6 @@ class MainActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            // Re-enter immersive mode when window gains focus
             WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
         }
     }
