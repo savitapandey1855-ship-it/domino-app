@@ -2,7 +2,6 @@ package com.domino.social
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -20,6 +19,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -27,7 +27,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.messaging.FirebaseMessaging
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
@@ -46,7 +46,6 @@ class MainActivity : Activity() {
         if (denied.isNotEmpty()) {
             Log.w(TAG, "Denied permissions: ${denied.keys}")
         }
-        // Load the web page after permissions are handled
         webView.loadUrl(LAUNCH_URL)
     }
 
@@ -164,14 +163,6 @@ class MainActivity : Activity() {
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
 
-        webView.setOnSystemUiVisibilityChangeListener { visibility ->
-            if (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0) {
-                webView.postDelayed({
-                    WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
-                }, 3000)
-            }
-        }
-
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
@@ -209,7 +200,6 @@ class MainActivity : Activity() {
                 progressBar.progress = 100
                 progressBar.visibility = View.GONE
 
-                // Minimal CSS: only disable text selection + tap highlight
                 view?.evaluateJavascript(
                     """
                     (function() {
@@ -282,17 +272,14 @@ class MainActivity : Activity() {
     private fun requestEssentialPermissions() {
         val permissions = mutableListOf<String>()
 
-        // Camera
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.CAMERA)
         }
 
-        // Microphone
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.RECORD_AUDIO)
         }
 
-        // Storage (Android 13+ uses READ_MEDIA_*)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
@@ -320,7 +307,6 @@ class MainActivity : Activity() {
         if (permissions.isNotEmpty()) {
             permissionLauncher.launch(permissions.toTypedArray())
         } else {
-            // All permissions already granted — load the page
             webView.loadUrl(LAUNCH_URL)
         }
     }
