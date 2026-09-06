@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -17,6 +18,8 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -36,7 +39,11 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Full-screen immersive mode - hide status bar + navigation bar
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
 
@@ -124,16 +131,33 @@ class MainActivity : Activity() {
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            // Fix touch issues - ensure proper touch handling
+            javaScriptCanOpenWindowsAutomatically = true
+            // Set a mobile user agent so the site serves mobile version
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
+        // Fix touch issues: ensure WebView doesn't intercept touch events improperly
         webView.setPadding(0, 0, 0, 0)
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
         webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        webView.isClickable = true
+        webView.isLongClickable = true
         webView.setOnLongClickListener { true }
         webView.isHapticFeedbackEnabled = false
-        webView.isLongClickable = true
+
+        // Re-show system bars on focus change for immersive sticky mode
+        webView.setOnSystemUiVisibilityChangeListener { visibility ->
+            if (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0) {
+                // System bars are visible - hide them again after a short delay
+                webView.postDelayed({
+                    WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
+                }, 3000)
+            }
+        }
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -173,6 +197,7 @@ class MainActivity : Activity() {
                 progressBar.visibility = View.GONE
 
                 // Minimal CSS: only disable text selection + tap highlight
+                // Do NOT override any layout properties - let the web app's own CSS work
                 view?.evaluateJavascript(
                     """
                     (function() {
@@ -233,6 +258,14 @@ class MainActivity : Activity() {
             webView.restoreState(savedInstanceState)
         } else {
             webView.loadUrl(LAUNCH_URL)
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            // Re-enter immersive mode when window gains focus
+            WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 
